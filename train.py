@@ -160,7 +160,7 @@ for epoch in range(EPOCH) :
         result['val_arousal'].append(tf.sqrt(tf.math.reduce_mean(tf.square(result_val_arousal))).numpy())
 
         # print(result)
-
+        print(temp_loss)
         #save weights
         if temp_loss == min(result['val_loss']) : 
             model.save_weights(os.path.join(save_path, "ckpt"))
