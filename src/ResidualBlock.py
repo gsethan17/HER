@@ -3,6 +3,95 @@ from tensorflow.keras.layers import Dense, Conv2D, BatchNormalization, ReLU, Glo
 from tensorflow.keras import Model
 from src.resnext_block import GroupConv2D
 
+class ResidualBlock(Model) :
+    def __init__(self, block_type = None, n_filters = None, se = None) :
+        super(ResidualBlock, self).__init__()
+        filters1, filters2, filters3 = n_filters
+        self.se = se
+        if block_type == 'identity' :
+            self.block_type = 'identity'
+            self.strides = 1
+        elif block_type == 'first_conv' :
+            self.block_type = 'conv'
+            self.strides = 1
+            self.conv_shortcut = Conv2D(filters = filters3,
+                                        kernel_size = 1,
+                                        padding = 'same',
+                                        strides = self.strides,
+                                        kernel_initializer = 'he_normal')
+            self.bn_shortcut = BatchNormalization(momentum = 0.9)
+        elif block_type == 'conv' :
+            self.block_type = 'conv'
+            self.strides = 2
+            self.conv_shortcut = Conv2D(filters = filters3,
+                                        kernel_size = 1,
+                                        padding = 'same',
+                                        strides = self.strides,
+                                        kernel_initializer = 'he_normal')
+            self.bn_shortcut = BatchNormalization(momentum = 0.9)
+            
+        self.conv_1 = Conv2D(filters = filters1,
+                             kernel_size = 1,
+                             padding = 'same',
+                             strides = self.strides,
+                             kernel_initializer = 'he_normal')
+        self.bn_1 = BatchNormalization(momentum = 0.9)
+        self.relu_1 = ReLU()
+        self.conv_2 = Conv2D(filters = filters2,
+                             kernel_size = 3,
+                             padding = 'same',
+                             kernel_initializer = 'he_normal')
+        self.bn_2 = BatchNormalization(momentum = 0.9)
+        self.relu_2 = ReLU()
+        self.conv_3 = Conv2D(filters = filters3,
+                             kernel_size = 1,
+                             padding = 'same',
+                             kernel_initializer = 'he_normal')
+        self.bn_3 = BatchNormalization(momentum = 0.9)
+        self.relu_3 = ReLU()
+        self.CA = CA(filters3)
+        self.SA = SA()
+        self.Mul = Multiply()
+        self.Add = Add()
+
+    def call(self, input) :
+        shortcut = input
+        if self.block_type == 'conv' :
+            shortcut = self.conv_shortcut(shortcut)
+            shortcut = self.bn_shortcut(shortcut)
+        x = self.conv_1(input)
+        x = self.bn_1(x)
+        x = self.relu_1(x)
+        x = self.conv_2(x)
+        x = self.bn_2(x)
+        x = self.relu_2(x)
+        x = self.conv_3(x)
+        x = self.bn_3(x)
+        
+        if self.se == 'CA' :
+            x = self.CA(x)
+        elif self.se == 'SA' :
+            x = self.SA(x)
+        elif self.se == 'serial_CA_SA' :
+            x = self.CA(x)
+            x = self.SA(x)
+        elif self.se == 'serial_SA_CA' :
+            x = self.SA(x)
+            x = self.CA(x)
+        elif self.se == 'parallel_mul' :
+            ca = self.CA(x)
+            sa = self.SA(x)
+            x = self.Mul([ca, sa])
+        elif self.se == 'parallel_add' :
+            ca = self.CA(x)
+            sa = self.SA(x)
+            x = self.Add([ca, sa])
+            
+        x = tf.add(shortcut, x)
+        x = self.relu_3(x)
+                    
+        return x
+
 class ResidualBlock34(Model) :
     def __init__(self, block_type = None, n_filters = None, cardinality = None, se = None) :
         super(ResidualBlock34, self).__init__()
