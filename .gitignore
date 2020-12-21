@@ -4,6 +4,9 @@
 /src
 /Train4Paper
 
+# Test file
+temp.py
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

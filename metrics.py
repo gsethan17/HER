@@ -8,6 +8,8 @@ def mse(pred, true) :
     result = tf.math.reduce_mean(power)
     return result
 
+
+
 def rmse(pred, true) :
     assert pred.shape[0] == true.shape[0], 'Length of predicted value and GT are not same'
     
