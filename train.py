@@ -1,5 +1,5 @@
 import tensorflow as tf
-from src.ResNet import ResNet34
+from src.ResNet import ResNet, ResNet34
 from src.basic import VGG, AlexNet
 from metrics import mse, rmse
 
@@ -50,10 +50,12 @@ def val_step(ref_model, X, Y) :
     return loss, metric
 
 # Model Setting
-BASE_MODEL = 'ResNet'
-LAYERS = 18
-SENet = None  # CA, SA, serial_CA_SA, serial_SA_CA, parallel_mul, parallel_add
+BASE_MODEL = 'ResNeXt'
+LAYERS = 34
+SENet = 'SA'  # CA, SA, serial_CA_SA, serial_SA_CA, parallel_mul, parallel_add
 ADVENCED = False  # if True, Final FC layer is increaed.
+
+PRE_TRAIN = False
 
 # Hyper-parameter setting
 EPOCH = 10
@@ -94,7 +96,11 @@ print('validation output data is {}'.format(y_val.shape))
 print("[INFO] creating model...")
 if BASE_MODEL == 'ResNet' :
     cardinality = None
-    model = ResNet34(num_layer = LAYERS, cardinality = cardinality, se = SENet, adv = ADVENCED)
+    if LAYERS == 18 or LAYERS == 34 :
+        model = ResNet34(num_layer = LAYERS, cardinality = cardinality, se = SENet, adv = ADVENCED)
+    else :
+        model = ResNet(num_layer = LAYERS, se = SENet)
+
 elif BASE_MODEL == 'ResNeXt' :
     if LAYERS == 34 : 
         cardinality = 32
@@ -123,10 +129,24 @@ save_path = os.path.join(save_dir, model_name)
 if not os.path.isdir(save_path) :
     os.mkdir(save_path)
 
-'''
-weight_path = os.path.join(base_dir, 'weights', 'ResNet34', 'checkpoint_8_300000-320739.ckpt')
-model.load_weights(weight_path)
-'''
+if PRE_TRAIN :
+    weight_path = os.path.join(save_path, 'ckpt')
+    model.load_weights(weight_path)
+    df = pd.read_csv(os.path.join(save_path, 'train_result.csv'))
+    result = {'iteration':df['iteration'].tolist(),
+              'train_loss':df['train_loss'].tolist(), 
+              'val_loss':df['val_loss'].tolist(),
+              'val_valence':df['val_valence'].tolist(),
+              'val_arousal':df['val_arousal'].tolist()}
+    st_epoch = result['iteration'][-1] // 320739
+else :
+    result = {'iteration':[],
+              'train_loss':[], 
+              'val_loss':[],
+              'val_valence':[],
+              'val_arousal':[]}
+    st_epoch = -1
+
 
 #tf.config.threading.set_intra_op_parallelism_threads(10)
 #tf.config.threading.set_inter_op_parallelism_threads(10)
@@ -139,13 +159,10 @@ print('=========================')
 num_train = int(x_train.shape[0] / TRAIN_BATCH)
 num_val = int(x_val.shape[0] / BATCH)
 
-result = {'iteration':[],
-          'train_loss':[], 
-          'val_loss':[],
-          'val_valence':[],
-          'val_arousal':[]}
 
 for epoch in range(EPOCH) :
+    if epoch <= st_epoch :
+        continue
     
     # train
     for i in range(num_train+1) :
